@@ -183,7 +183,7 @@
     <input id="lkSenha" type="password" placeholder="senha" autocomplete="current-password">
     <button class="btn" onclick="lockLogin()">Entrar</button>
     <div class="lk-msg" id="lkMsg"></div>
-    <div style="font-size:10.5px;color:var(--text-3);margin-top:16px;letter-spacing:.3px">NCM Pro · build 2026-06-26b</div>
+    <div style="font-size:10.5px;color:var(--text-3);margin-top:16px;letter-spacing:.3px">NCM Pro · build 2026-06-26c</div>
   </div>
 </div>
 
@@ -1302,9 +1302,9 @@ function salvarCfgSupa(){
 function mostrarLock(msg){
   const lg=document.getElementById('lockLogo'); if(lg && typeof LOGO_ARTECON!=='undefined') lg.src=LOGO_ARTECON;
   const m=$('#lkMsg'); if(m){ m.style.color=msg&&msg.erro?'#b00020':'var(--text-3)'; m.textContent=(msg&&msg.txt)||msg||''; }
-  document.getElementById('lock').classList.add('show');
+  const el=document.getElementById('lock'); el.classList.add('show'); el.style.display='flex';
 }
-function esconderLock(){ document.getElementById('lock').classList.remove('show'); }
+function esconderLock(){ const el=document.getElementById('lock'); el.classList.remove('show'); el.style.display='none'; }
 async function lockLogin(){
   const m=$('#lkMsg');
   if(!SUPA){ m.style.color='#b00020'; m.textContent='Sem conexão com o servidor. Recarregue a página.'; return; }
@@ -1399,6 +1399,7 @@ async function supaPosLogin(){
     // registra o acesso (histórico de login)
     try{ await SUPA.from('ncm_acessos').insert({tenant_id:TENANT,usuario_id:SESSAO.user.id,email:em}); }catch(e){}
     aplicarPermissoes();
+    esconderLock();
     toast('Conectado ao Supabase');
   }catch(e){_supaStatus('erro pós-login: '+e.message,'#b00020');}
 }
