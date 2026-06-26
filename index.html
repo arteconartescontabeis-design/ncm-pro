@@ -135,6 +135,20 @@
   /* ===== TOAST ===== */
   #toast{position:fixed;right:18px;bottom:18px;background:var(--text);color:#fff;padding:13px 18px;border-radius:10px;font-size:13.5px;box-shadow:var(--shadow-lg);max-width:360px;opacity:0;transform:translateY(10px);transition:.25s;z-index:300}
   #toast.show{opacity:1;transform:none}
+  /* ----- tela de login (lock) ----- */
+  #lock{position:fixed;inset:0;z-index:500;background:linear-gradient(160deg,#f4f7fa 0%,#e9eef3 100%);display:none;align-items:center;justify-content:center}
+  #lock.show{display:flex}
+  .lock-card{background:#fff;border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-lg);width:380px;max-width:92vw;padding:30px 28px;text-align:center}
+  .lock-card img{max-width:170px;margin:0 auto 6px}
+  .lock-card .lk-sub{font-size:12.5px;color:var(--text-3);margin-bottom:20px}
+  .lock-card input{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:9px;font-size:14px;margin-bottom:11px;font-family:var(--font);box-sizing:border-box}
+  .lock-card input:focus{outline:none;border-color:var(--gold)}
+  .lock-card .btn{width:100%;justify-content:center;padding:12px;font-size:14px;margin-top:2px}
+  .lock-card .lk-msg{font-size:12.5px;margin-top:14px;min-height:16px}
+  .lock-card .lk-link{font-size:12px;color:var(--gold-dim);cursor:pointer;margin-top:14px;display:inline-block}
+  .lock-card .lk-cfg{display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px;text-align:left}
+  .lock-card .lk-cfg.show{display:block}
+  .lock-card .lk-cfg label{font-size:11.5px;color:var(--text-3);display:block;margin-bottom:3px}
 
   /* ===== RESPONSIVO ===== */
   @media(max-width:760px){
@@ -150,6 +164,25 @@
 </style>
 </head>
 <body>
+
+<div id="lock">
+  <div class="lock-card">
+    <img id="lockLogo" alt="Artecon" src="">
+    <div class="lk-sub">NCM Pro · Classificação Fiscal</div>
+    <input id="lkEmail" type="email" placeholder="e-mail" autocomplete="username">
+    <input id="lkSenha" type="password" placeholder="senha" autocomplete="current-password">
+    <button class="btn" onclick="lockLogin()">Entrar</button>
+    <div class="lk-msg" id="lkMsg"></div>
+    <span class="lk-link" onclick="document.getElementById('lkCfg').classList.toggle('show')">configurar conexão</span>
+    <div class="lk-cfg" id="lkCfg">
+      <label>URL do Supabase</label>
+      <input id="lkUrl" type="text" placeholder="https://<projeto>.supabase.co">
+      <label>Chave (anon / publishable)</label>
+      <input id="lkKey" type="text" placeholder="sb_publishable_…">
+      <button class="btn sec btn-sm" style="width:100%;justify-content:center" onclick="lockSalvarCfg()">Salvar conexão</button>
+    </div>
+  </div>
+</div>
 
 <aside class="sidebar">
   <div class="sidebar-brand">
@@ -1205,19 +1238,51 @@ function salvarCfgSupa(){
   salvar();
   supaInit(true);
 }
+/* ---------- tela de login (lock) ---------- */
+function mostrarLock(msg, abrirCfg){
+  const lg=document.getElementById('lockLogo'); if(lg && typeof LOGO_ARTECON!=='undefined') lg.src=LOGO_ARTECON;
+  if(STORE.cfg){ const u=$('#lkUrl'),k=$('#lkKey'); if(u)u.value=STORE.cfg.supaUrl||''; if(k)k.value=STORE.cfg.supaKey||''; }
+  const m=$('#lkMsg'); if(m){ m.style.color=msg&&msg.erro?'#b00020':'var(--text-3)'; m.textContent=(msg&&msg.txt)||msg||''; }
+  if(abrirCfg) $('#lkCfg').classList.add('show');
+  document.getElementById('lock').classList.add('show');
+}
+function esconderLock(){ document.getElementById('lock').classList.remove('show'); }
+async function lockLogin(){
+  const m=$('#lkMsg');
+  if(!SUPA){ m.style.color='#b00020'; m.textContent='Configure a conexão (URL e chave) abaixo.'; $('#lkCfg').classList.add('show'); return; }
+  const email=$('#lkEmail').value.trim(), senha=$('#lkSenha').value;
+  if(!email||!senha){ m.style.color='#b00020'; m.textContent='Informe e-mail e senha.'; return; }
+  m.style.color='var(--text-3)'; m.textContent='Entrando…';
+  try{
+    const {data,error}=await SUPA.auth.signInWithPassword({email,password:senha});
+    if(error){ m.style.color='#b00020'; m.textContent=error.message; return; }
+    SESSAO=data.session; await supaPosLogin();
+    if(TENANT){ esconderLock(); $('#lkSenha').value=''; }
+    else { m.style.color='#b06a00'; m.textContent='Login ok, mas seu usuário não está vinculado. Procure o administrador.'; }
+  }catch(e){ m.style.color='#b00020'; m.textContent='Erro: '+e.message; }
+}
+function lockSalvarCfg(){
+  if(!STORE.cfg)STORE.cfg={};
+  STORE.cfg.supaUrl=($('#lkUrl').value||'').trim().replace(/\/$/,'');
+  STORE.cfg.supaKey=($('#lkKey').value||'').trim();
+  salvar();
+  if($('#cfgSupaUrl')){$('#cfgSupaUrl').value=STORE.cfg.supaUrl;$('#cfgSupaKey').value=STORE.cfg.supaKey;}
+  supaInit(true);
+}
+
 async function supaInit(aposSalvar){
   const u=STORE.cfg&&STORE.cfg.supaUrl, k=STORE.cfg&&STORE.cfg.supaKey;
-  if(!u||!k){_supaStatus('desconectado');return;}
-  if(!window.supabase){_supaStatus('lib não carregou (sem internet?)','#b00020');return;}
+  if(!u||!k){ _supaStatus('desconectado'); mostrarLock('Informe a conexão do Supabase para entrar.', true); return; }
+  if(!window.supabase){ _supaStatus('lib não carregou (sem internet?)','#b00020'); mostrarLock({txt:'Sem conexão com o servidor. Verifique a internet e recarregue.',erro:true}, false); return; }
   try{
-    SUPA=window.supabase.createClient(u,k,{auth:{persistSession:true,storageKey:'ncmpro_supa'}});
-    const {data}=await SUPA.auth.getSession();
-    SESSAO=data&&data.session||null;
+    // persistSession:false => sempre exige login ao abrir (trava total)
+    SUPA=window.supabase.createClient(u,k,{auth:{persistSession:false,autoRefreshToken:true,storageKey:'ncmpro_supa'}});
+    SESSAO=null; TENANT=null;
     $('#supaLoginBox').style.display='flex';
-    if(SESSAO){await supaPosLogin();}
-    else{_supaStatus('conectado — faça login','#b06a00');}
-    if(aposSalvar)toast('Supabase configurado');
-  }catch(e){_supaStatus('erro: '+e.message,'#b00020');}
+    _supaStatus('conectado — faça login','#b06a00');
+    mostrarLock(aposSalvar?'Conexão salva. Faça login.':'', false);
+    if(aposSalvar)toast('Conexão configurada');
+  }catch(e){ _supaStatus('erro: '+e.message,'#b00020'); mostrarLock({txt:'Erro na conexão: '+e.message,erro:true}, true); }
 }
 async function supaLogin(){
   if(!SUPA){toast('Configure URL/key primeiro');return;}
@@ -1226,10 +1291,12 @@ async function supaLogin(){
   const {data,error}=await SUPA.auth.signInWithPassword({email,password:senha});
   if(error){toast('Login: '+error.message);return;}
   SESSAO=data.session; await supaPosLogin();
+  if(TENANT) esconderLock();
 }
 async function supaLogout(){
   if(SUPA){await SUPA.auth.signOut();}
-  SESSAO=null;TENANT=null;_supaStatus('conectado — faça login','#b06a00');toast('Sessão encerrada');
+  SESSAO=null;TENANT=null;EH_ADMIN=false;_supaStatus('conectado — faça login','#b06a00');
+  mostrarLock('Sessão encerrada. Faça login para continuar.', false);
 }
 async function supaPosLogin(){
   try{
@@ -1261,6 +1328,8 @@ $('#modoLbl').textContent=MODO;$('#cfgModo').textContent=MODO;
 carregar();
 if($('#cfgAiUrl')){$('#cfgAiUrl').value=(STORE.cfg&&STORE.cfg.aiProxy)||'';$('#cfgAiModel').value=(STORE.cfg&&STORE.cfg.aiModel)||'haiku';}
 if($('#cfgSupaUrl')){$('#cfgSupaUrl').value=(STORE.cfg&&STORE.cfg.supaUrl)||'';$('#cfgSupaKey').value=(STORE.cfg&&STORE.cfg.supaKey)||'';}
+mostrarLock();                 // trava a tela imediatamente
+$('#lkSenha').addEventListener('keydown',e=>{if(e.key==='Enter')lockLogin();});
 supaInit();
 </script>
 </body>
