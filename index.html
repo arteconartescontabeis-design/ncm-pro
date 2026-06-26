@@ -183,6 +183,7 @@
     <input id="lkSenha" type="password" placeholder="senha" autocomplete="current-password">
     <button class="btn" onclick="lockLogin()">Entrar</button>
     <div class="lk-msg" id="lkMsg"></div>
+    <div style="font-size:10.5px;color:var(--text-3);margin-top:16px;letter-spacing:.3px">NCM Pro · build 2026-06-26b</div>
   </div>
 </div>
 
@@ -1314,7 +1315,7 @@ async function lockLogin(){
     const {data,error}=await SUPA.auth.signInWithPassword({email,password:senha});
     if(error){ m.style.color='#b00020'; m.textContent=error.message; return; }
     SESSAO=data.session; await supaPosLogin();
-    if(TENANT){ esconderLock(); $('#lkSenha').value=''; }
+    if(TENANT){ esconderLock(); aplicarPermissoes(); $('#lkSenha').value=''; }
     else { m.style.color='#b06a00'; m.textContent='Login ok, mas seu usuário não está vinculado. Procure o administrador.'; }
   }catch(e){ m.style.color='#b00020'; m.textContent='Erro: '+e.message; }
 }
@@ -1377,7 +1378,7 @@ async function supaLogin(){
   const {data,error}=await SUPA.auth.signInWithPassword({email,password:senha});
   if(error){toast('Login: '+error.message);return;}
   SESSAO=data.session; await supaPosLogin();
-  if(TENANT) esconderLock();
+  if(TENANT){ esconderLock(); aplicarPermissoes(); }
 }
 async function supaLogout(){
   if(SUPA){await SUPA.auth.signOut();}
