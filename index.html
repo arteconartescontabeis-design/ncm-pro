@@ -170,6 +170,16 @@
     <button class="nav-item" data-v="historico">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
       <span>Histórico</span></button>
+    <div class="nav-section">Gestão</div>
+    <button class="nav-item" data-v="simulacoes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+      <span>Simulações</span></button>
+    <button class="nav-item" data-v="usuarios">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span>Usuários</span></button>
+    <button class="nav-item" data-v="acessos">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/></svg>
+      <span>Acessos</span></button>
     <div class="nav-section">Sistema</div>
     <button class="nav-item" data-v="config">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -237,6 +247,37 @@
     <div class="card" id="histLista"></div>
     <p class="dica" style="margin-top:18px"><b>Memória de classificados</b> — termos que o app fixou para um NCM. Se houver um errado (ex.: aparecendo como "já classificado"), remova aqui.</p>
     <div class="card" id="memLista"></div>
+  </section>
+
+  <!-- SIMULAÇÕES -->
+  <section class="view" id="v-simulacoes">
+    <p class="dica">Histórico das varreduras (simulações) feitas pela equipe, salvas no Supabase. Clique numa simulação para ver os itens.</p>
+    <div id="simLista" class="card"></div>
+    <div id="simDetalhe" style="margin-top:14px"></div>
+  </section>
+
+  <!-- USUÁRIOS -->
+  <section class="view" id="v-usuarios">
+    <p class="dica">Usuários do escritório com acesso ao NCM Pro. Apenas administradores podem cadastrar, ativar/inativar e alterar papéis.</p>
+    <div id="usrAddBox" style="display:none;margin-bottom:14px" class="card">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <input id="usrNome" placeholder="Nome" style="flex:1;min-width:140px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+        <input id="usrEmail" type="email" placeholder="e-mail" style="flex:1;min-width:180px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+        <input id="usrSenha" type="text" placeholder="senha inicial" style="min-width:140px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+        <select id="usrPapel" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+          <option value="operador">Operador</option><option value="admin">Administrador</option>
+        </select>
+        <button class="btn btn-sm" onclick="criarUsuario()">Cadastrar</button>
+      </div>
+      <p style="font-size:11.5px;color:var(--text-3);margin-top:6px">A senha inicial deve ser trocada pelo usuário depois. Para o login funcionar de imediato, desative "Confirm email" em Authentication → Providers no Supabase.</p>
+    </div>
+    <div id="usrLista" class="card"></div>
+  </section>
+
+  <!-- ACESSOS -->
+  <section class="view" id="v-acessos">
+    <p class="dica">Histórico de acessos (logins) ao aplicativo, por usuário e data.</p>
+    <div id="acsLista" class="card"></div>
   </section>
 
   <!-- CONFIG -->
@@ -584,12 +625,15 @@ function importarTIPI(file){
 /* =====================================================================
    UI
    ===================================================================== */
-const TITULOS={buscar:'Buscar NCM',varredura:'Varredura em lote',base:'Base NCM',historico:'Histórico',config:'Configuração'};
+const TITULOS={buscar:'Buscar NCM',varredura:'Varredura em lote',base:'Base NCM',historico:'Histórico',simulacoes:'Simulações',usuarios:'Usuários',acessos:'Acessos',config:'Configuração'};
 const SUBTITULOS={
   buscar:'Classificação fiscal · TIPI · IBS/CBS · CEST',
   varredura:'Sugestão de NCM para várias descrições de uma vez',
   base:'Tabela TIPI carregada · importação oficial da Receita',
   historico:'Buscas registradas nesta máquina',
+  simulacoes:'Histórico das varreduras feitas pela equipe',
+  usuarios:'Cadastro e gestão de acesso (admin)',
+  acessos:'Histórico de logins no aplicativo',
   config:'Modo de dados, migração e persistência'
 };
 
@@ -602,6 +646,9 @@ document.getElementById('nav').addEventListener('click',e=>{
   $('#titulo').textContent=TITULOS[v];
   $('#subtitulo').textContent=SUBTITULOS[v]||'';
   if(v==='base')renderBase();if(v==='historico')renderHist();
+  if(v==='simulacoes')renderSimulacoes();
+  if(v==='usuarios')renderUsuarios();
+  if(v==='acessos')renderAcessos();
 });
 
 $('#q').addEventListener('keydown',e=>{if(e.key==='Enter')buscar();});
@@ -721,6 +768,20 @@ async function analisar(itens){
   $('#loteRes').innerHTML='<div class="vazio">Analisando '+itens.length+' itens…</div>';
   for(const it of itens){ _loteDados.push(await _classificarItem(it.produto, it.ncmAtual)); }
   renderLote();
+  salvarSimulacao();   // grava no Supabase (se online)
+}
+async function salvarSimulacao(){
+  if(!_supaOnline()||!_loteDados.length)return;
+  try{
+    const R=_resumoLote();
+    const titulo=(_loteDados[0].produto||'Simulação').slice(0,60)+(_loteDados.length>1?` (+${_loteDados.length-1})`:'');
+    const {data:v,error}=await SUPA.from('ncm_varreduras').insert(
+      {tenant_id:TENANT,usuario_id:SESSAO.user.id,titulo,total:R.tot,confirmados:R.conf,revisar:R.rev,divergencias:R.div}).select().single();
+    if(error||!v)return;
+    const itens=_loteDados.map(r=>({varredura_id:v.id,produto:r.produto,ncm_atual:r.ncmAtual||null,
+      ncm_sugerido:r.ncm,status:r.status,ipi:r.ipi,pis_cofins:r.pisAliq,ibs_cbs:r.ibs,divergencia:r.divergencia||null}));
+    await SUPA.from('ncm_varredura_itens').insert(itens);
+  }catch(e){}
 }
 function renderLote(){
   const temAtual=_loteDados.some(r=>r.ncmAtual);
@@ -1035,6 +1096,97 @@ function renderMem(){
   }).join('');
 }
 function removerMem(dn){ DB.removerClassificado(dn); toast('Removido da memória'); renderMem(); }
+
+/* ===================== GESTÃO (Supabase) ===================== */
+function _avisoOffline(el){ document.getElementById(el).innerHTML='<div class="vazio">Conecte-se ao Supabase (Config) para usar esta tela.</div>'; }
+function _dt(s){ try{return new Date(s).toLocaleString('pt-BR').slice(0,16);}catch(e){return s||'';} }
+
+// ---- Simulações (histórico de varreduras) ----
+async function renderSimulacoes(){
+  if(!_supaOnline()){ _avisoOffline('simLista'); document.getElementById('simDetalhe').innerHTML=''; return; }
+  document.getElementById('simLista').innerHTML='<div class="vazio">Carregando…</div>';
+  document.getElementById('simDetalhe').innerHTML='';
+  const {data,error}=await SUPA.from('ncm_varreduras').select('*').order('criado_em',{ascending:false}).limit(100);
+  if(error){ document.getElementById('simLista').innerHTML='<div class="vazio">Erro: '+error.message+'</div>'; return; }
+  if(!data.length){ document.getElementById('simLista').innerHTML='<div class="vazio">Nenhuma simulação salva ainda. As varreduras são gravadas automaticamente quando você processa uma lista.</div>'; return; }
+  document.getElementById('simLista').innerHTML=`<table><thead><tr><th>Data</th><th>Título</th><th>Itens</th><th>Confirmados</th><th>A revisar</th><th>Diverg.</th><th></th></tr></thead><tbody>${
+    data.map(v=>`<tr><td>${_dt(v.criado_em)}</td><td>${v.titulo||'—'}</td><td>${v.total||0}</td>
+      <td><span class="tag conf">${v.confirmados||0}</span></td><td><span class="tag rev">${v.revisar||0}</span></td><td>${v.divergencias||0}</td>
+      <td><span class="sel" onclick="abrirSimulacao('${v.id}')">ver itens</span></td></tr>`).join('')
+  }</tbody></table>`;
+}
+async function abrirSimulacao(id){
+  const det=document.getElementById('simDetalhe');
+  det.innerHTML='<div class="vazio">Carregando itens…</div>';
+  const {data,error}=await SUPA.from('ncm_varredura_itens').select('*').eq('varredura_id',id);
+  if(error){ det.innerHTML='<div class="vazio">Erro: '+error.message+'</div>'; return; }
+  det.innerHTML=`<div class="card"><table><thead><tr><th>Produto</th><th>NCM atual</th><th>NCM sugerido</th><th>Status</th><th>IPI</th><th>PIS/COFINS</th><th>IBS/CBS</th></tr></thead><tbody>${
+    data.map(r=>`<tr><td>${r.produto}</td><td>${r.ncm_atual||'—'}</td><td><b>${r.ncm_sugerido||'—'}</b></td>
+      <td>${r.status||''}</td><td>${r.ipi||''}</td><td>${r.pis_cofins||''}</td><td>${r.ibs_cbs||''}</td></tr>`).join('')
+  }</tbody></table></div>`;
+}
+
+// ---- Usuários ----
+async function renderUsuarios(){
+  const box=document.getElementById('usrAddBox');
+  if(!_supaOnline()){ box.style.display='none'; _avisoOffline('usrLista'); return; }
+  box.style.display = EH_ADMIN ? 'block' : 'none';
+  document.getElementById('usrLista').innerHTML='<div class="vazio">Carregando…</div>';
+  const {data,error}=await SUPA.from('ncm_usuarios').select('id,nome,email,papel,ativo,criado_em').order('criado_em',{ascending:true});
+  if(error){ document.getElementById('usrLista').innerHTML='<div class="vazio">Erro: '+error.message+'</div>'; return; }
+  const meu=SESSAO.user.id;
+  document.getElementById('usrLista').innerHTML=`<table><thead><tr><th>Nome</th><th>E-mail</th><th>Papel</th><th>Status</th>${EH_ADMIN?'<th>Ações</th>':''}</tr></thead><tbody>${
+    data.map(u=>{
+      const acoes = EH_ADMIN && u.id!==meu ? `
+        <span class="sel" onclick="mudarPapel('${u.id}','${u.papel==='admin'?'operador':'admin'}')">${u.papel==='admin'?'tornar operador':'tornar admin'}</span> ·
+        <span class="sel" onclick="toggleAtivo('${u.id}',${u.ativo?'false':'true'})">${u.ativo?'inativar':'reativar'}</span>` : (u.id===meu?'<span style="color:var(--text-3)">você</span>':'');
+      return `<tr><td>${u.nome||'—'}</td><td>${u.email||'—'}</td>
+        <td><span class="tag ${u.papel==='admin'?'conf':'lex'}">${u.papel}</span></td>
+        <td>${u.ativo?'<span class="tag conf">ativo</span>':'<span class="tag rev">inativo</span>'}</td>
+        ${EH_ADMIN?`<td>${acoes}</td>`:''}</tr>`;
+    }).join('')
+  }</tbody></table>`;
+}
+async function mudarPapel(id,papel){
+  const {error}=await SUPA.from('ncm_usuarios').update({papel}).eq('id',id);
+  if(error)toast('Erro: '+error.message); else { toast('Papel atualizado'); renderUsuarios(); }
+}
+async function toggleAtivo(id,ativo){
+  const {error}=await SUPA.from('ncm_usuarios').update({ativo}).eq('id',id);
+  if(error)toast('Erro: '+error.message); else { toast(ativo?'Usuário reativado':'Usuário inativado'); renderUsuarios(); }
+}
+async function criarUsuario(){
+  if(!_supaOnline()||!EH_ADMIN){toast('Apenas admin conectado');return;}
+  const nome=$('#usrNome').value.trim(), email=$('#usrEmail').value.trim(), senha=$('#usrSenha').value, papel=$('#usrPapel').value;
+  if(!email||!senha){toast('Informe e-mail e senha');return;}
+  if(senha.length<6){toast('Senha mínima de 6 caracteres');return;}
+  toast('Cadastrando…');
+  try{
+    // cliente descartável: cria o usuário sem trocar a sessão do admin
+    const tmp=window.supabase.createClient(STORE.cfg.supaUrl, STORE.cfg.supaKey, {auth:{persistSession:false,autoRefreshToken:false,storageKey:'ncmpro_tmp'}});
+    const {data,error}=await tmp.auth.signUp({email,password:senha});
+    if(error){toast('Auth: '+error.message);return;}
+    const uid=data.user&&data.user.id;
+    if(!uid){toast('Usuário criado; confirme o e-mail para ativar.');return;}
+    // vincula ao tenant do admin via função segura
+    const {error:e2}=await SUPA.rpc('ncm_admin_criar_usuario',{p_uid:uid,p_email:email,p_nome:nome||null,p_papel:papel});
+    if(e2){toast('Vínculo: '+e2.message);return;}
+    $('#usrNome').value='';$('#usrEmail').value='';$('#usrSenha').value='';
+    toast('Usuário cadastrado'); renderUsuarios();
+  }catch(e){toast('Erro: '+e.message);}
+}
+
+// ---- Acessos ----
+async function renderAcessos(){
+  if(!_supaOnline()){ _avisoOffline('acsLista'); return; }
+  document.getElementById('acsLista').innerHTML='<div class="vazio">Carregando…</div>';
+  const {data,error}=await SUPA.from('ncm_acessos').select('email,em').order('em',{ascending:false}).limit(200);
+  if(error){ document.getElementById('acsLista').innerHTML='<div class="vazio">Erro: '+error.message+'</div>'; return; }
+  if(!data.length){ document.getElementById('acsLista').innerHTML='<div class="vazio">Nenhum acesso registrado ainda.</div>'; return; }
+  document.getElementById('acsLista').innerHTML=`<table><thead><tr><th>Data / hora</th><th>Usuário</th></tr></thead><tbody>${
+    data.map(a=>`<tr><td>${_dt(a.em)}</td><td>${a.email||'—'}</td></tr>`).join('')
+  }</tbody></table>`;
+}
 function salvarCfgIA(){
   if(!STORE.cfg)STORE.cfg={};
   STORE.cfg.aiProxy=($('#cfgAiUrl').value||'').trim();
@@ -1044,7 +1196,7 @@ function salvarCfgIA(){
 }
 
 /* ---------- Supabase (opcional · persistência compartilhada) ---------- */
-let SUPA=null, SESSAO=null, TENANT=null;
+let SUPA=null, SESSAO=null, TENANT=null, EH_ADMIN=false;
 function _supaStatus(txt,cor){const el=$('#supaStatus');if(el){el.textContent=txt;el.style.color=cor||'var(--text-2)';}}
 function salvarCfgSupa(){
   if(!STORE.cfg)STORE.cfg={};
@@ -1085,9 +1237,12 @@ async function supaPosLogin(){
     TENANT=t||null;
     if(!TENANT){_supaStatus('logado, mas sem tenant — rode ncm_vincular_usuario','#b06a00');
       toast('Usuário sem vínculo de tenant. Rode ncm_vincular_usuario no SQL Editor.');return;}
+    try{ const {data:adm}=await SUPA.rpc('ncm_eh_admin'); EH_ADMIN=!!adm; }catch(e){ EH_ADMIN=false; }
     await supaCarregarClassificados();
     const em=(SESSAO&&SESSAO.user&&SESSAO.user.email)||'usuário';
     _supaStatus('online · '+em,'#1a7d3c');
+    // registra o acesso (histórico de login)
+    try{ await SUPA.from('ncm_acessos').insert({tenant_id:TENANT,usuario_id:SESSAO.user.id,email:em}); }catch(e){}
     toast('Conectado ao Supabase');
   }catch(e){_supaStatus('erro pós-login: '+e.message,'#b00020');}
 }
