@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
@@ -848,13 +848,65 @@ function exportarLote(fmt,tipo){
   if(fmt==='xlsx') return _exportXLSX(tipo);
   return _exportPDF(tipo);
 }
+/* paleta de status para Excel/PDF */
+function _statusCor(txt){
+  const t=(txt||'').toString().toLowerCase();
+  if(t.includes('diverg')) return {bg:'F7D4D8', fg:'9B1C2E'};
+  if(t.includes('sem match')) return {bg:'F7D4D8', fg:'9B1C2E'};
+  if(t.includes('confirmado')||t.startsWith('ia')||t==='ok') return {bg:'D5EFDD', fg:'1A7D3C'};
+  if(t.includes('confirme')||t.includes('revisar')||t.includes('sinôn')||t.includes('sinon')||t.includes('memó')||t.includes('memo')) return {bg:'FBEACF', fg:'8A5A00'};
+  return null;
+}
+function _resumoLote(){
+  const tot=_loteDados.length;
+  const conf=_loteDados.filter(r=>r.cls==='conf'||(r.status||'').toLowerCase().startsWith('ia')).length;
+  const rev=tot-conf;
+  const div=_loteDados.filter(r=>r.divergencia==='Sim').length;
+  const ia=_loteDados.filter(r=>(r.status||'').toLowerCase().startsWith('ia')).length;
+  return {tot,conf,rev,div,ia};
+}
+
 function _exportXLSX(tipo){
   try{
     const cols=_loteColunas(tipo);
-    const aoa=[cols.map(c=>c.h)];
-    _loteDados.forEach(r=>aoa.push(cols.map(c=>r[c.k]||'')));
-    const ws=XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols']=cols.map(c=>({wch: c.k==='produto'?34:(c.k==='descNcm'?40:(c.k.indexOf('fund')>=0||c.k==='nesh'?50:(c.k==='obs'?40:14)))}));
+    const N=cols.length, R=_resumoLote();
+    const azul='1A5276', azulEsc='14425F';
+    const enc=(r,c)=>XLSX.utils.encode_cell({r,c});
+    const ws={}; const merges=[];
+    // Linha 0 — título
+    ws[enc(0,0)]={v:'Relatório de Classificação NCM — Artecon', t:'s',
+      s:{font:{bold:true,sz:16,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:azul}},alignment:{vertical:'center',horizontal:'left'}}};
+    merges.push({s:{r:0,c:0},e:{r:0,c:N-1}});
+    // Linha 1 — metadados
+    ws[enc(1,0)]={v:`${tipo==='simples'?'Simplificado':'Completo'}  ·  ${R.tot} itens  ·  ${R.conf} confirmados  ·  ${R.rev} a revisar${_loteDados.some(r=>r.ncmAtual)?'  ·  '+R.div+' divergências':''}  ·  gerado em ${_hojeStr()}`, t:'s',
+      s:{font:{sz:10,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:azulEsc}},alignment:{vertical:'center',horizontal:'left'}}};
+    merges.push({s:{r:1,c:0},e:{r:1,c:N-1}});
+    // Linha 2 — cabeçalho
+    cols.forEach((c,i)=>{ ws[enc(2,i)]={v:c.h, t:'s',
+      s:{font:{bold:true,sz:10,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:azul}},alignment:{vertical:'center',horizontal:'center',wrapText:true},
+         border:{bottom:{style:'thin',color:{rgb:'FFFFFF'}},right:{style:'thin',color:{rgb:'FFFFFF'}}}}}; });
+    // Dados
+    _loteDados.forEach((row,ri)=>{
+      const r=ri+3, zebra = ri%2===1;
+      cols.forEach((c,ci)=>{
+        const val=(row[c.k]!=null?row[c.k]:'').toString();
+        let st={font:{sz:9,color:{rgb:'2A2A2A'}},alignment:{vertical:'top',horizontal:'left',wrapText:true},
+                fill:{fgColor:{rgb: zebra?'F4F7FA':'FFFFFF'}},
+                border:{bottom:{style:'hair',color:{rgb:'D8E1EA'}}}};
+        if(c.k==='ncm'){ st.font={sz:9,bold:true,color:{rgb:azul}}; st.alignment={vertical:'top',horizontal:'center'}; }
+        if(c.k==='ipi'||c.k==='pisAliq'||c.k==='ibs'){ st.alignment={vertical:'top',horizontal:'center'}; }
+        if(c.k==='status'){ const cor=_statusCor(val); if(cor){ st.fill={fgColor:{rgb:cor.bg}}; st.font={sz:9,bold:true,color:{rgb:cor.fg}}; st.alignment={vertical:'top',horizontal:'center'}; } }
+        if(c.k==='divergencia'){ const cor=_statusCor(val==='Sim'?'divergente':(val==='Não'?'ok':'')); if(cor){ st.fill={fgColor:{rgb:cor.bg}}; st.font={sz:9,bold:true,color:{rgb:cor.fg}}; } st.alignment={vertical:'top',horizontal:'center'}; }
+        ws[enc(r,ci)]={v:val, t:'s', s:st};
+      });
+    });
+    const lastRow=_loteDados.length+2;
+    ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:lastRow,c:N-1}});
+    ws['!merges']=merges;
+    ws['!cols']=cols.map(c=>({wch: c.k==='produto'?34:(c.k==='descNcm'?40:((c.k.indexOf('fund')>=0||c.k==='nesh')?52:(c.k==='obs'?40:(c.k==='status'?18:13))))}));
+    ws['!rows']=[{hpt:26},{hpt:18},{hpt:22}];          // alturas título/meta/cabeçalho
+    ws['!freeze']={xSplit:0,ySplit:3};                  // congela até a linha de cabeçalho
+    ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:2,c:0},e:{r:lastRow,c:N-1}})};
     const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,'NCM '+(tipo==='simples'?'simplificado':'completo'));
     XLSX.writeFile(wb,`NCM_${tipo==='simples'?'simplificado':'completo'}_${new Date().toISOString().slice(0,10)}.xlsx`);
@@ -878,6 +930,13 @@ function _carregarJsPDF(){
     document.head.appendChild(s1);
   });
 }
+function _pill(doc,x,y,w,h,texto,corBg,corTxt){
+  doc.setFillColor(corBg[0],corBg[1],corBg[2]);
+  doc.roundedRect(x,y,w,h,3,3,'F');
+  doc.setTextColor(corTxt[0],corTxt[1],corTxt[2]);
+  doc.setFontSize(8.5); doc.setFont('helvetica','bold');
+  doc.text(texto, x+w/2, y+h/2+3, {align:'center'});
+}
 async function _exportPDF(tipo){
   toast('Gerando PDF…');
   try{
@@ -885,33 +944,69 @@ async function _exportPDF(tipo){
     const {jsPDF}=window.jspdf;
     const completo = tipo!=='simples';
     const doc=new jsPDF({orientation: completo?'landscape':'portrait', unit:'pt', format:'a4'});
-    const W=doc.internal.pageSize.getWidth();
-    doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(26,82,118);
-    doc.text('Relatório de Classificação NCM', 40, 40);
-    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(90,90,90);
-    doc.text(`${completo?'Completo':'Simplificado'} · ${_loteDados.length} itens · gerado em ${_hojeStr()}`, 40, 56);
-    doc.text('Apoio à classificação — não substitui análise técnica (RGI/NESH) nem Solução de Consulta RFB.', 40, 68);
-    const cols=_loteColunas(tipo);
-    const larguraPorChave={produto:90, descNcm:90, pisfund:110, ibsfund:110, nesh:100, obs:80};
+    const W=doc.internal.pageSize.getWidth(), H=doc.internal.pageSize.getHeight();
+    const azul=[26,82,118], azulC=[230,240,246], cinza=[110,110,110];
+    const cols=_loteColunas(tipo), R=_resumoLote();
+    const temAtual=_loteDados.some(r=>r.ncmAtual);
+
+    // ---- cabeçalho com faixa colorida ----
+    const drawHeader=()=>{
+      doc.setFillColor(azul[0],azul[1],azul[2]); doc.rect(0,0,W,58,'F');
+      doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(16);
+      doc.text('NCM Pro — Classificação Fiscal', 40, 30);
+      doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(220,232,240);
+      doc.text(`Artecon Artes Contábeis  ·  Relatório ${completo?'completo':'simplificado'}  ·  ${_hojeStr()}`, 40, 46);
+      doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(11);
+      doc.text(`${R.tot} itens`, W-40, 34, {align:'right'});
+    };
+    drawHeader();
+
+    // ---- pílulas de resumo ----
+    let px=40; const py=70, ph=20;
+    _pill(doc,px,py,108,ph,`${R.conf} confirmados`,[213,239,221],[26,125,60]); px+=116;
+    _pill(doc,px,py,96,ph,`${R.rev} a revisar`,[251,234,207],[138,90,0]); px+=104;
+    if(temAtual){ _pill(doc,px,py,108,ph,`${R.div} divergências`,[247,212,216],[155,28,46]); px+=116; }
+    if(R.ia){ _pill(doc,px,py,96,ph,`${R.ia} refino IA`,[224,235,243],[26,82,118]); px+=104; }
+
+    // mapa índice->chave p/ colorir células
+    const idxKey={}; cols.forEach((c,i)=>idxKey[i]=c.k);
+    const larguraPorChave={produto:90, descNcm:88, pisfund:108, ibsfund:108, nesh:96, obs:78};
     const colStyles={};
     if(completo){ cols.forEach((c,i)=>{ if(larguraPorChave[c.k]) colStyles[i]={cellWidth:larguraPorChave[c.k]}; }); }
-    else { const ip=cols.findIndex(c=>c.k==='produto'); if(ip>=0) colStyles[ip]={cellWidth:200}; }
+    else { const ip=cols.findIndex(c=>c.k==='produto'); if(ip>=0) colStyles[ip]={cellWidth:220}; }
+
     doc.autoTable({
-      startY:80, styles:{fontSize: completo?6.5:8, cellPadding:3, overflow:'linebreak', valign:'top'},
-      headStyles:{fillColor:[26,82,118], textColor:255, fontSize: completo?6.5:8},
-      alternateRowStyles:{fillColor:[245,247,250]},
+      startY:100,
+      styles:{fontSize: completo?6.5:8.5, cellPadding:4, overflow:'linebreak', valign:'top', lineColor:[224,232,240], lineWidth:0.5},
+      headStyles:{fillColor:azul, textColor:255, fontStyle:'bold', fontSize: completo?6.8:9, halign:'center'},
+      alternateRowStyles:{fillColor:[244,247,250]},
       head:[cols.map(c=>c.h)],
       body:_loteDados.map(r=>cols.map(c=>r[c.k]||'')),
       columnStyles: colStyles,
-      margin:{left:40,right:40},
-      didDrawPage:(data)=>{ doc.setFontSize(8);doc.setTextColor(150);
-        doc.text('Artecon · NCM Pro', 40, doc.internal.pageSize.getHeight()-20);
-        doc.text('Pág. '+doc.internal.getNumberOfPages(), W-70, doc.internal.pageSize.getHeight()-20); }
+      margin:{left:40,right:40,top:100},
+      didParseCell:(d)=>{
+        const k=idxKey[d.column.index];
+        if(d.section==='body'){
+          if(k==='ncm'){ d.cell.styles.textColor=azul; d.cell.styles.fontStyle='bold'; d.cell.styles.halign='center'; }
+          if(k==='ipi'||k==='pisAliq'||k==='ibs'){ d.cell.styles.halign='center'; }
+          if(k==='status'){ const cor=_statusCor(d.cell.raw); d.cell.styles.halign='center'; d.cell.styles.fontStyle='bold';
+            if(cor){ d.cell.styles.fillColor=_hex(cor.bg); d.cell.styles.textColor=_hex(cor.fg); } }
+          if(k==='divergencia'){ const v=d.cell.raw; const cor=_statusCor(v==='Sim'?'divergente':(v==='Não'?'ok':'')); d.cell.styles.halign='center'; d.cell.styles.fontStyle='bold';
+            if(cor){ d.cell.styles.fillColor=_hex(cor.bg); d.cell.styles.textColor=_hex(cor.fg); } }
+        }
+      },
+      didDrawPage:(data)=>{
+        if(data.pageNumber>1) drawHeader();
+        doc.setFontSize(7.5); doc.setTextColor(cinza[0],cinza[1],cinza[2]); doc.setFont('helvetica','normal');
+        doc.text('Apoio à classificação — não substitui análise técnica (RGI/NESH) nem Solução de Consulta RFB.', 40, H-18);
+        doc.text('Pág. '+doc.internal.getNumberOfPages(), W-40, H-18, {align:'right'});
+      }
     });
     doc.save(`NCM_${completo?'completo':'simplificado'}_${new Date().toISOString().slice(0,10)}.pdf`);
     toast('PDF gerado');
   }catch(e){toast('Erro no PDF: '+e.message);}
 }
+function _hex(h){return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];}
 
 function renderBase(){
   const itens=SEED_TIPI.filter(x=>x.nivel===8);
