@@ -149,6 +149,10 @@
   .lock-card .lk-cfg{display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px;text-align:left}
   .lock-card .lk-cfg.show{display:block}
   .lock-card .lk-cfg label{font-size:11.5px;color:var(--text-3);display:block;margin-bottom:3px}
+  .ia-spin{width:40px;height:40px;border:4px solid var(--border);border-top-color:var(--gold);border-radius:50%;margin:0 auto;animation:iaspin .8s linear infinite}
+  @keyframes iaspin{to{transform:rotate(360deg)}}
+  .ia-bar{height:6px;background:var(--surface-2);border-radius:4px;overflow:hidden;margin-top:14px}
+  .ia-bar>i{display:block;height:100%;background:var(--gold);width:0;transition:width .25s}
 
   /* ===== RESPONSIVO ===== */
   @media(max-width:760px){
@@ -173,14 +177,6 @@
     <input id="lkSenha" type="password" placeholder="senha" autocomplete="current-password">
     <button class="btn" onclick="lockLogin()">Entrar</button>
     <div class="lk-msg" id="lkMsg"></div>
-    <span class="lk-link" onclick="document.getElementById('lkCfg').classList.toggle('show')">configurar conexão</span>
-    <div class="lk-cfg" id="lkCfg">
-      <label>URL do Supabase</label>
-      <input id="lkUrl" type="text" placeholder="https://<projeto>.supabase.co">
-      <label>Chave (anon / publishable)</label>
-      <input id="lkKey" type="text" placeholder="sb_publishable_…">
-      <button class="btn sec btn-sm" style="width:100%;justify-content:center" onclick="lockSalvarCfg()">Salvar conexão</button>
-    </div>
   </div>
 </div>
 
@@ -219,10 +215,34 @@
       <span>Config</span></button>
   </nav>
   <div class="sidebar-footer">
-    <div class="who">Artecon</div>
-    <div class="modo">Modo: <b id="modoLbl">local</b></div>
+    <div class="who" id="footUser">Artecon</div>
+    <div style="margin-top:6px;display:flex;gap:10px">
+      <span class="sel" id="footSenha" style="display:none" onclick="abrirTrocaSenha()">trocar senha</span>
+      <span class="sel" id="footSair" style="display:none" onclick="supaLogout()">sair</span>
+    </div>
   </div>
 </aside>
+
+<div id="senhaModal" style="display:none;position:fixed;inset:0;z-index:480;background:rgba(20,30,40,.45);align-items:center;justify-content:center">
+  <div class="lock-card" style="width:340px">
+    <div style="font-weight:700;color:var(--text);font-size:16px;margin-bottom:4px">Trocar senha</div>
+    <div class="lk-sub">Defina uma nova senha para o seu acesso.</div>
+    <input id="snNova" type="password" placeholder="nova senha (mín. 6)" autocomplete="new-password">
+    <input id="snConf" type="password" placeholder="confirmar nova senha" autocomplete="new-password">
+    <button class="btn" onclick="salvarNovaSenha()">Salvar</button>
+    <div class="lk-msg" id="snMsg"></div>
+    <span class="lk-link" onclick="document.getElementById('senhaModal').style.display='none'">cancelar</span>
+  </div>
+</div>
+
+<div id="iaProc" style="display:none;position:fixed;inset:0;z-index:490;background:rgba(20,30,40,.45);align-items:center;justify-content:center">
+  <div class="lock-card" style="width:320px;text-align:center">
+    <div class="ia-spin"></div>
+    <div id="iaProcTxt" style="font-weight:700;color:var(--text);font-size:15px;margin-top:16px">Refinando com IA…</div>
+    <div id="iaProcSub" class="lk-sub" style="margin-top:6px">Aguarde, isso pode levar alguns segundos.</div>
+    <div class="ia-bar"><i id="iaProcBar"></i></div>
+  </div>
+</div>
 
 <main class="content">
   <div class="page-head">
@@ -249,7 +269,7 @@
       <button class="btn" onclick="rodarLote()">Processar lista</button>
       <input type="file" id="fileProd" accept=".xlsx,.xls,.csv" style="display:none" onchange="if(this.files[0]){importarProdutos(this.files[0]);this.value='';}">
       <button class="btn sec" onclick="document.getElementById('fileProd').click()">Importar planilha</button>
-      <button class="btn sec" onclick="refinarLoteIA()">Refinar com IA</button>
+      <button class="btn sec" id="btnRefino" onclick="refinarLoteIA()">Refinar com IA</button>
       <button class="btn sec" onclick="document.getElementById('lote').value=''">Limpar</button>
     </div>
     <div id="loteResumo" style="display:none;margin-top:14px"></div>
@@ -526,18 +546,28 @@ function indexar(){
 }
 function jacc(A,B){if(!A.size||!B.size)return 0;let i=0;A.forEach(g=>{if(B.has(g))i++;});return i/(A.size+B.size-i);}
 
+/* ---------- conexão embutida (publishable key é segura no navegador, protegida por RLS) ---------- */
+const DEFAULT_SUPA_URL = 'https://lpubtyklsftjinpvcvvq.supabase.co';
+const DEFAULT_SUPA_KEY = 'sb_publishable_Gg9AGh6I4ui8wps4R2TMbA_Ne-d9Uyu';
+const DEFAULT_AI_PROXY = 'https://lpubtyklsftjinpvcvvq.supabase.co/functions/v1/claude-proxy';
 /* ---------- estado local persistido ---------- */
-let STORE = {classif:[], buscas:[], varreduras:[], tipi:[], cfg:{aiProxy:'', aiModel:'haiku'}};
+let STORE = {classif:[], buscas:[], varreduras:[], tipi:[], cfg:{}};
 function carregar(){
   try{const r=localStorage.getItem('ncmpro_local');if(r){STORE=JSON.parse(r);}}catch(e){}
   if(!STORE.classif||STORE.classif.length===0){STORE.classif=JSON.parse(JSON.stringify(SEED_CLASSIF));salvar();}
-  if(!STORE.cfg)STORE.cfg={aiProxy:'',aiModel:'haiku'};
+  if(!STORE.cfg)STORE.cfg={};
+  // conexão sempre preenchida com o padrão (app já abre pronto)
+  if(!STORE.cfg.supaUrl) STORE.cfg.supaUrl=DEFAULT_SUPA_URL;
+  if(!STORE.cfg.supaKey) STORE.cfg.supaKey=DEFAULT_SUPA_KEY;
+  if(!STORE.cfg.aiProxy) STORE.cfg.aiProxy=DEFAULT_AI_PROXY;
+  if(!STORE.cfg.aiModel) STORE.cfg.aiModel='haiku';
+  salvar();
   if(STORE.tipi&&STORE.tipi.length){SEED_TIPI.length=0;STORE.tipi.forEach(r=>SEED_TIPI.push(r));}
   else{const h=hydrateTIPI();SEED_TIPI.length=0;h.forEach(r=>SEED_TIPI.push(r));}   // TIPI oficial embutida
   indexar();
 }
 function salvar(){try{localStorage.setItem('ncmpro_local',JSON.stringify(STORE));}catch(e){}}
-function resetLocal(){const cfg=STORE.cfg||{aiProxy:'',aiModel:'haiku'};STORE={classif:JSON.parse(JSON.stringify(SEED_CLASSIF)),buscas:[],varreduras:[],tipi:[],cfg};const h=hydrateTIPI();SEED_TIPI.length=0;h.forEach(r=>SEED_TIPI.push(r));indexar();salvar();toast('Dados locais resetados — TIPI oficial recarregada');render();}
+function resetLocal(){const cfg=STORE.cfg||{};STORE={classif:JSON.parse(JSON.stringify(SEED_CLASSIF)),buscas:[],varreduras:[],tipi:[],cfg};const h=hydrateTIPI();SEED_TIPI.length=0;h.forEach(r=>SEED_TIPI.push(r));indexar();salvar();toast('Dados locais resetados — TIPI oficial recarregada');render();}
 
 /* texto buscável = cadeia inteira concatenada */
 function textoCadeia(cod){
@@ -883,6 +913,14 @@ function importarProdutos(file){
 }
 
 /* ---------- Refino por IA (proxy Edge Function claude-proxy) ---------- */
+function _iaProc(txt,sub,pct){
+  const o=document.getElementById('iaProc'); if(!o)return;
+  if(txt!=null && $('#iaProcTxt')) $('#iaProcTxt').textContent=txt;
+  if(sub!=null && $('#iaProcSub')) $('#iaProcSub').textContent=sub;
+  if(pct!=null && $('#iaProcBar')) $('#iaProcBar').style.width=Math.max(0,Math.min(100,pct))+'%';
+  o.style.display='flex';
+}
+function _iaProcFim(){ const o=document.getElementById('iaProc'); if(o)o.style.display='none'; const b=$('#iaProcBar'); if(b)b.style.width='0'; }
 async function refinarLoteIA(){
   if(!_loteDados.length){toast('Processe ou importe itens primeiro');return;}
   const alvo=_loteDados.filter(r=>r.cls!=='conf' || r.divergencia==='Sim');  // ambíguos + divergentes
@@ -894,31 +932,41 @@ async function refinarLoteIA(){
     return;
   }
   const modelo = (STORE.cfg.aiModel==='sonnet')?'claude-sonnet-4-6':'claude-haiku-4-5-20251001';
-  toast(`Refinando ${alvo.length} itens com IA…`);
-  let ok=0;
-  for(const r of alvo){
-    try{
-      const resp=await fetch(proxy,{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({produto:r.produto, ncm_atual:r.ncmAtual||null, candidatos:r.candidatos, model:modelo})});
-      if(!resp.ok)throw new Error('HTTP '+resp.status);
-      const data=await resp.json();
-      // contrato esperado da Edge Function: {ncm, confianca, justificativa}
-      const ncm = (data.ncm||'').toString();
-      if(ncm){
-        const it=TIPI_IDX.get(ncm); const t=SEED_TRIB[ncm]||resolverTributacao(ncm);
-        r.ncm=ncm; r.descNcm=it?it.desc:r.descNcm;
-        r.ipi=it?(it.ipi==='NT'?'NT':it.ipi+'%'):r.ipi;
-        r.pisRegime=t.mono?'Monofásico':'Regime geral';
-        r.pisAliq=t.mono?`${t.pis.toFixed(2).replace('.',',')}/${t.cofins.toFixed(2).replace('.',',')}`:'1,65/7,60';
-        r.ibs=t.zero?'0%':(t.red?`−${(t.red*100).toFixed(0)}%`:'padrão');
-        r.pisfund=t.pisfund;r.ibsfund=t.ibsfund;r.nesh=t.nesh;
-        r.obs=(data.justificativa? 'IA: '+data.justificativa : r.obs);
-        const conf=data.confianca!=null?(' '+Math.round(data.confianca*100)+'%'):'';
-        r.status='IA'+conf; r.cls= (data.confianca!=null && data.confianca>=0.8)?'conf':'rev';
-        if(r.ncmAtual){const na=r.ncmAtual.replace(/\D/g,'');r.divergencia = na!==ncm.replace(/\D/g,'')?'Sim':'Não';}
-        ok++;
-      }
-    }catch(err){ r.obs=(r.obs?r.obs+' · ':'')+'IA falhou: '+err.message; }
+  const btn=document.getElementById('btnRefino'); const txtOrig=btn?btn.textContent:'';
+  if(btn){ btn.disabled=true; btn.style.opacity='.6'; btn.style.cursor='wait'; btn.textContent='Refinando…'; }
+  _iaProc(`Refinando com IA… (0 de ${alvo.length})`, 'Analisando os itens marcados para revisão. Não feche a página.', 0);
+  let ok=0, i=0;
+  try{
+    for(const r of alvo){
+      i++;
+      _iaProc(`Refinando com IA… (${i} de ${alvo.length})`, `Item: ${(r.produto||'').slice(0,46)}`, Math.round((i-1)/alvo.length*100));
+      try{
+        const resp=await fetch(proxy,{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({produto:r.produto, ncm_atual:r.ncmAtual||null, candidatos:r.candidatos, model:modelo})});
+        if(!resp.ok)throw new Error('HTTP '+resp.status);
+        const data=await resp.json();
+        // contrato esperado da Edge Function: {ncm, confianca, justificativa}
+        const ncm = (data.ncm||'').toString();
+        if(ncm){
+          const it=TIPI_IDX.get(ncm); const t=SEED_TRIB[ncm]||resolverTributacao(ncm);
+          r.ncm=ncm; r.descNcm=it?it.desc:r.descNcm;
+          r.ipi=it?(it.ipi==='NT'?'NT':it.ipi+'%'):r.ipi;
+          r.pisRegime=t.mono?'Monofásico':'Regime geral';
+          r.pisAliq=t.mono?`${t.pis.toFixed(2).replace('.',',')}/${t.cofins.toFixed(2).replace('.',',')}`:'1,65/7,60';
+          r.ibs=t.zero?'0%':(t.red?`−${(t.red*100).toFixed(0)}%`:'padrão');
+          r.pisfund=t.pisfund;r.ibsfund=t.ibsfund;r.nesh=t.nesh;
+          r.obs=(data.justificativa? 'IA: '+data.justificativa : r.obs);
+          const conf=data.confianca!=null?(' '+Math.round(data.confianca*100)+'%'):'';
+          r.status='IA'+conf; r.cls= (data.confianca!=null && data.confianca>=0.8)?'conf':'rev';
+          if(r.ncmAtual){const na=r.ncmAtual.replace(/\D/g,'');r.divergencia = na!==ncm.replace(/\D/g,'')?'Sim':'Não';}
+          ok++;
+        }
+      }catch(err){ r.obs=(r.obs?r.obs+' · ':'')+'IA falhou: '+err.message; }
+      _iaProc(null,null,Math.round(i/alvo.length*100));
+    }
+  } finally {
+    _iaProcFim();
+    if(btn){ btn.disabled=false; btn.style.opacity=''; btn.style.cursor=''; btn.textContent=txtOrig||'Refinar com IA'; }
   }
   renderLote();
   toast(`IA concluída: ${ok}/${alvo.length} refinados`);
@@ -1239,17 +1287,15 @@ function salvarCfgSupa(){
   supaInit(true);
 }
 /* ---------- tela de login (lock) ---------- */
-function mostrarLock(msg, abrirCfg){
+function mostrarLock(msg){
   const lg=document.getElementById('lockLogo'); if(lg && typeof LOGO_ARTECON!=='undefined') lg.src=LOGO_ARTECON;
-  if(STORE.cfg){ const u=$('#lkUrl'),k=$('#lkKey'); if(u)u.value=STORE.cfg.supaUrl||''; if(k)k.value=STORE.cfg.supaKey||''; }
   const m=$('#lkMsg'); if(m){ m.style.color=msg&&msg.erro?'#b00020':'var(--text-3)'; m.textContent=(msg&&msg.txt)||msg||''; }
-  if(abrirCfg) $('#lkCfg').classList.add('show');
   document.getElementById('lock').classList.add('show');
 }
 function esconderLock(){ document.getElementById('lock').classList.remove('show'); }
 async function lockLogin(){
   const m=$('#lkMsg');
-  if(!SUPA){ m.style.color='#b00020'; m.textContent='Configure a conexão (URL e chave) abaixo.'; $('#lkCfg').classList.add('show'); return; }
+  if(!SUPA){ m.style.color='#b00020'; m.textContent='Sem conexão com o servidor. Recarregue a página.'; return; }
   const email=$('#lkEmail').value.trim(), senha=$('#lkSenha').value;
   if(!email||!senha){ m.style.color='#b00020'; m.textContent='Informe e-mail e senha.'; return; }
   m.style.color='var(--text-3)'; m.textContent='Entrando…';
@@ -1261,31 +1307,57 @@ async function lockLogin(){
     else { m.style.color='#b06a00'; m.textContent='Login ok, mas seu usuário não está vinculado. Procure o administrador.'; }
   }catch(e){ m.style.color='#b00020'; m.textContent='Erro: '+e.message; }
 }
-function lockSalvarCfg(){
-  if(!STORE.cfg)STORE.cfg={};
-  STORE.cfg.supaUrl=($('#lkUrl').value||'').trim().replace(/\/$/,'');
-  STORE.cfg.supaKey=($('#lkKey').value||'').trim();
-  salvar();
-  if($('#cfgSupaUrl')){$('#cfgSupaUrl').value=STORE.cfg.supaUrl;$('#cfgSupaKey').value=STORE.cfg.supaKey;}
-  supaInit(true);
+
+/* ---------- permissões por papel ---------- */
+function aplicarPermissoes(){
+  const esconder = !EH_ADMIN;   // operador não vê Config nem Acessos
+  ['config','acessos'].forEach(v=>{
+    const b=document.querySelector(`#nav [data-v="${v}"]`); if(b) b.style.display = esconder?'none':'';
+  });
+  // se um operador estava numa tela bloqueada, volta para Buscar
+  if(esconder){
+    const ativa=document.querySelector('#nav .nav-item.on');
+    if(ativa && ['config','acessos'].includes(ativa.dataset.v)) document.querySelector('[data-v=buscar]').click();
+  }
+  // rodapé: usuário + sair + trocar senha
+  const em=(SESSAO&&SESSAO.user&&SESSAO.user.email)||'';
+  if($('#footUser')) $('#footUser').textContent = em || 'Artecon';
+  if($('#footSair')) $('#footSair').style.display = em?'inline':'none';
+  if($('#footSenha')) $('#footSenha').style.display = em?'inline':'none';
+}
+
+/* ---------- troca de senha (auto-serviço) ---------- */
+function abrirTrocaSenha(){ $('#snMsg').textContent=''; $('#snNova').value=''; $('#snConf').value=''; document.getElementById('senhaModal').style.display='flex'; }
+async function salvarNovaSenha(){
+  const m=$('#snMsg'), nova=$('#snNova').value, conf=$('#snConf').value;
+  if(nova.length<6){ m.style.color='#b00020'; m.textContent='Mínimo de 6 caracteres.'; return; }
+  if(nova!==conf){ m.style.color='#b00020'; m.textContent='As senhas não coincidem.'; return; }
+  if(!SUPA||!SESSAO){ m.style.color='#b00020'; m.textContent='Sessão expirada. Faça login de novo.'; return; }
+  m.style.color='var(--text-3)'; m.textContent='Salvando…';
+  try{
+    const {error}=await SUPA.auth.updateUser({password:nova});
+    if(error){ m.style.color='#b00020'; m.textContent=error.message; return; }
+    m.style.color='#1a7d3c'; m.textContent='Senha alterada com sucesso.';
+    setTimeout(()=>{document.getElementById('senhaModal').style.display='none';},1200);
+  }catch(e){ m.style.color='#b00020'; m.textContent='Erro: '+e.message; }
 }
 
 async function supaInit(aposSalvar){
   const u=STORE.cfg&&STORE.cfg.supaUrl, k=STORE.cfg&&STORE.cfg.supaKey;
-  if(!u||!k){ _supaStatus('desconectado'); mostrarLock('Informe a conexão do Supabase para entrar.', true); return; }
-  if(!window.supabase){ _supaStatus('lib não carregou (sem internet?)','#b00020'); mostrarLock({txt:'Sem conexão com o servidor. Verifique a internet e recarregue.',erro:true}, false); return; }
+  if(!u||!k){ _supaStatus('desconectado'); mostrarLock({txt:'Conexão não configurada.',erro:true}); return; }
+  if(!window.supabase){ _supaStatus('lib não carregou (sem internet?)','#b00020'); mostrarLock({txt:'Sem conexão com o servidor. Verifique a internet e recarregue.',erro:true}); return; }
   try{
     // persistSession:false => sempre exige login ao abrir (trava total)
     SUPA=window.supabase.createClient(u,k,{auth:{persistSession:false,autoRefreshToken:true,storageKey:'ncmpro_supa'}});
     SESSAO=null; TENANT=null;
-    $('#supaLoginBox').style.display='flex';
+    if($('#supaLoginBox'))$('#supaLoginBox').style.display='flex';
     _supaStatus('conectado — faça login','#b06a00');
-    mostrarLock(aposSalvar?'Conexão salva. Faça login.':'', false);
+    mostrarLock(aposSalvar?'Conexão atualizada. Faça login.':'');
     if(aposSalvar)toast('Conexão configurada');
-  }catch(e){ _supaStatus('erro: '+e.message,'#b00020'); mostrarLock({txt:'Erro na conexão: '+e.message,erro:true}, true); }
+  }catch(e){ _supaStatus('erro: '+e.message,'#b00020'); mostrarLock({txt:'Erro na conexão: '+e.message,erro:true}); }
 }
 async function supaLogin(){
-  if(!SUPA){toast('Configure URL/key primeiro');return;}
+  if(!SUPA){toast('Sem conexão');return;}
   const email=$('#supaEmail').value.trim(), senha=$('#supaSenha').value;
   if(!email||!senha){toast('Informe e-mail e senha');return;}
   const {data,error}=await SUPA.auth.signInWithPassword({email,password:senha});
@@ -1296,7 +1368,8 @@ async function supaLogin(){
 async function supaLogout(){
   if(SUPA){await SUPA.auth.signOut();}
   SESSAO=null;TENANT=null;EH_ADMIN=false;_supaStatus('conectado — faça login','#b06a00');
-  mostrarLock('Sessão encerrada. Faça login para continuar.', false);
+  aplicarPermissoes();
+  mostrarLock('Sessão encerrada. Faça login para continuar.');
 }
 async function supaPosLogin(){
   try{
@@ -1310,6 +1383,7 @@ async function supaPosLogin(){
     _supaStatus('online · '+em,'#1a7d3c');
     // registra o acesso (histórico de login)
     try{ await SUPA.from('ncm_acessos').insert({tenant_id:TENANT,usuario_id:SESSAO.user.id,email:em}); }catch(e){}
+    aplicarPermissoes();
     toast('Conectado ao Supabase');
   }catch(e){_supaStatus('erro pós-login: '+e.message,'#b00020');}
 }
@@ -1324,7 +1398,7 @@ function _supaOnline(){return SUPA&&SESSAO&&TENANT;}
 function render(){renderBase();renderHist();}
 
 /* init */
-$('#modoLbl').textContent=MODO;$('#cfgModo').textContent=MODO;
+$('#cfgModo').textContent=MODO;
 carregar();
 if($('#cfgAiUrl')){$('#cfgAiUrl').value=(STORE.cfg&&STORE.cfg.aiProxy)||'';$('#cfgAiModel').value=(STORE.cfg&&STORE.cfg.aiModel)||'haiku';}
 if($('#cfgSupaUrl')){$('#cfgSupaUrl').value=(STORE.cfg&&STORE.cfg.supaUrl)||'';$('#cfgSupaKey').value=(STORE.cfg&&STORE.cfg.supaKey)||'';}
