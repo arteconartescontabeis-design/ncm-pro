@@ -183,7 +183,7 @@
     <input id="lkSenha" type="password" placeholder="senha" autocomplete="current-password">
     <button class="btn" onclick="lockLogin()">Entrar</button>
     <div class="lk-msg" id="lkMsg"></div>
-    <div style="font-size:10.5px;color:var(--text-3);margin-top:16px;letter-spacing:.3px">NCM Pro · build 2026-06-26f</div>
+    <div style="font-size:10.5px;color:var(--text-3);margin-top:16px;letter-spacing:.3px">NCM Pro · build 2026-06-27a</div>
   </div>
 </div>
 
@@ -199,6 +199,9 @@
     <button class="nav-item" data-v="varredura">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
       <span>Varredura</span></button>
+    <button class="nav-item" data-v="conferencia">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      <span>Conferência</span></button>
     <div class="nav-section">Base</div>
     <button class="nav-item" data-v="base">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
@@ -291,6 +294,28 @@
       <button class="btn sec btn-sm" onclick="exportarLote('pdf','simples')">PDF simplificado</button>
     </div>
     <div id="loteRes"></div>
+  </section>
+
+  <!-- CONFERÊNCIA -->
+  <section class="view" id="v-conferencia">
+    <p class="dica">Confronto de cadastro: informe a <b>descrição do produto + o NCM já cadastrado</b>; o sistema confere e diz se <b>CONFERE</b>, está <b>DIVERGENTE</b> ou precisa de <b>revisão</b>. Cole uma linha por item no formato <b>descrição ; NCM</b> (ou cole duas colunas direto do Excel), ou importe a planilha (com coluna NCM).</p>
+    <textarea id="confInput" placeholder="cascara sagrada composta ; 2106.90.30&#10;café torrado em grãos ; 0901.21.00&#10;sabonete líquido ; 3401.30.00"></textarea>
+    <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn" onclick="conferir()">Conferir</button>
+      <input type="file" id="fileConf" accept=".xlsx,.xls,.csv" style="display:none" onchange="if(this.files[0]){importarConferencia(this.files[0]);this.value='';}">
+      <button class="btn sec" onclick="document.getElementById('fileConf').click()">Importar planilha</button>
+      <button class="btn sec" onclick="refinarLoteIA()">Refinar com IA</button>
+      <button class="btn sec" onclick="document.getElementById('confInput').value=''">Limpar</button>
+    </div>
+    <div id="confResumo" style="display:none;margin-top:14px"></div>
+    <div id="confExport" style="display:none;margin:14px 0 4px;gap:10px;flex-wrap:wrap">
+      <span style="font-size:12px;color:var(--text-3);align-self:center;margin-right:4px">Exportar:</span>
+      <button class="btn sec btn-sm" onclick="exportarLote('xlsx','completo')">Excel completo</button>
+      <button class="btn sec btn-sm" onclick="exportarLote('xlsx','simples')">Excel simplificado</button>
+      <button class="btn sec btn-sm" onclick="exportarLote('pdf','completo')">PDF completo</button>
+      <button class="btn sec btn-sm" onclick="exportarLote('pdf','simples')">PDF simplificado</button>
+    </div>
+    <div id="confRes"></div>
   </section>
 
   <!-- BASE -->
@@ -701,10 +726,11 @@ function importarTIPI(file){
 /* =====================================================================
    UI
    ===================================================================== */
-const TITULOS={buscar:'Buscar NCM',varredura:'Varredura em lote',base:'Base NCM',historico:'Histórico',simulacoes:'Simulações',usuarios:'Usuários',acessos:'Acessos',config:'Configuração'};
+const TITULOS={buscar:'Buscar NCM',varredura:'Varredura em lote',conferencia:'Conferência de NCM',base:'Base NCM',historico:'Histórico',simulacoes:'Simulações',usuarios:'Usuários',acessos:'Acessos',config:'Configuração'};
 const SUBTITULOS={
   buscar:'Classificação fiscal · TIPI · IBS/CBS · CEST',
   varredura:'Sugestão de NCM para várias descrições de uma vez',
+  conferencia:'Confronto do NCM cadastrado com a descrição do produto',
   base:'Tabela TIPI carregada · importação oficial da Receita',
   historico:'Buscas registradas nesta máquina',
   simulacoes:'Histórico das varreduras feitas pela equipe',
@@ -812,6 +838,8 @@ async function abrirFicha(cod){
 }
 
 let _loteDados = [];
+let _telaLote = 'varredura';   // 'varredura' | 'conferencia'
+function _renderLoteAtual(){ _telaLote==='conferencia' ? renderConferencia() : renderLote(); }
 // classifica um produto isolado e devolve o registro estruturado (com tributação)
 async function _classificarItem(produto, ncmAtual){
   const r=await DB.buscar(produto);
@@ -841,16 +869,17 @@ async function _classificarItem(produto, ncmAtual){
 async function analisar(itens){
   if(!itens.length){toast('Nada para analisar');return;}
   _loteDados=[];
-  $('#loteRes').innerHTML='<div class="vazio">Analisando '+itens.length+' itens…</div>';
+  const alvo = _telaLote==='conferencia' ? '#confRes' : '#loteRes';
+  $(alvo).innerHTML='<div class="vazio">Analisando '+itens.length+' itens…</div>';
   for(const it of itens){ _loteDados.push(await _classificarItem(it.produto, it.ncmAtual)); }
-  renderLote();
+  _renderLoteAtual();
   salvarSimulacao();   // grava no Supabase (se online)
 }
 async function salvarSimulacao(){
   if(!_supaOnline()||!_loteDados.length)return;
   try{
     const R=_resumoLote();
-    const titulo=(_loteDados[0].produto||'Simulação').slice(0,60)+(_loteDados.length>1?` (+${_loteDados.length-1})`:'');
+    const titulo=(_telaLote==='conferencia'?'Conferência: ':'')+(_loteDados[0].produto||'Simulação').slice(0,60)+(_loteDados.length>1?` (+${_loteDados.length-1})`:'');
     const {data:v,error}=await SUPA.from('ncm_varreduras').insert(
       {tenant_id:TENANT,usuario_id:SESSAO.user.id,titulo,total:R.tot,confirmados:R.conf,revisar:R.rev,divergencias:R.div}).select().single();
     if(error||!v)return;
@@ -886,6 +915,7 @@ function renderLote(){
 async function rodarLote(){
   const linhas=$('#lote').value.split('\n').map(s=>s.trim()).filter(Boolean);
   if(!linhas.length){toast('Cole ao menos uma linha ou importe uma planilha');return;}
+  _telaLote='varredura';
   await analisar(linhas.map(l=>({produto:l})));
 }
 
@@ -899,9 +929,9 @@ function _acharColsProduto(m){
   }
   return null;
 }
-function importarProdutos(file){
+function _lerPlanilhaProdutos(file, cb){
   const reader=new FileReader();
-  reader.onload=async e=>{
+  reader.onload=e=>{
     try{
       const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
       const ws=wb.Sheets[wb.SheetNames[0]];
@@ -917,12 +947,74 @@ function importarProdutos(file){
         const ncmAtual = cNcm>=0 ? String(lin[cNcm]==null?'':lin[cNcm]).trim() : '';
         itens.push({produto, ncmAtual});
       }
-      if(!itens.length){toast('Não encontrei descrições na planilha');return;}
-      toast(`Planilha lida: ${itens.length} itens${cNcm>=0?' (com NCM atual)':''}`);
-      await analisar(itens);
+      cb(itens, cNcm>=0);
     }catch(err){toast('Erro ao ler planilha: '+err.message);}
   };
   reader.readAsArrayBuffer(file);
+}
+function importarProdutos(file){
+  _lerPlanilhaProdutos(file,(itens,temNcm)=>{
+    if(!itens.length){toast('Não encontrei descrições na planilha');return;}
+    _telaLote='varredura';
+    toast(`Planilha lida: ${itens.length} itens${temNcm?' (com NCM atual)':''}`);
+    analisar(itens);
+  });
+}
+function importarConferencia(file){
+  _lerPlanilhaProdutos(file,(itens,temNcm)=>{
+    if(!itens.length){toast('Não encontrei descrições na planilha');return;}
+    if(!temNcm)toast('Atenção: a planilha não tem coluna NCM — sem isso não há o que conferir.');
+    _telaLote='conferencia';
+    toast(`Planilha lida: ${itens.length} itens`);
+    analisar(itens);
+  });
+}
+
+/* ---------- CONFERÊNCIA: confronto NCM cadastrado × descrição ---------- */
+function _parseConfLinha(l){
+  l=l.trim();
+  let m=l.match(/^(.*?)[;\t]+\s*([0-9][0-9.\s]{5,})$/);            // "descrição ; 2106.90.30" ou tab
+  if(m) return {produto:m[1].trim(), ncmAtual:m[2].replace(/\s/g,'')};
+  m=l.match(/^(.+?)\s+(\d{4}\.?\d{2}\.?\d{2})$/);                  // NCM colado no fim
+  if(m) return {produto:m[1].trim(), ncmAtual:m[2]};
+  return {produto:l, ncmAtual:''};                                 // sem NCM informado
+}
+async function conferir(){
+  const linhas=$('#confInput').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(!linhas.length){toast('Cole ao menos uma linha (descrição ; NCM) ou importe uma planilha');return;}
+  _telaLote='conferencia';
+  await analisar(linhas.map(_parseConfLinha));
+}
+function _vereditoConf(r){
+  if(!r.ncmAtual) return {t:'SEM NCM', bg:'#ececec', fg:'#666', k:'sem'};
+  if(r.divergencia==='Sim') return {t:'DIVERGENTE', bg:'#f7d4d8', fg:'#9b1c2e', k:'div'};
+  if(r.cls==='conf' && r.divergencia==='Não') return {t:'CONFERE', bg:'#d5efdd', fg:'#1a7d3c', k:'ok'};
+  return {t:'REVISAR', bg:'#fbeacf', fg:'#8a5a00', k:'rev'};
+}
+function renderConferencia(){
+  const badge=(t,bg,fg)=>`<span style="display:inline-block;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;background:${bg};color:${fg}">${t}</span>`;
+  let rows='';
+  _loteDados.forEach(r=>{
+    const v=_vereditoConf(r);
+    const sugLink = (v.k==='div'||v.k==='rev') && r.ncm!=='—'
+      ? ` <span class="sel" onclick="$('#q').value='${(r.produto||'').replace(/['\"]/g,'')}';document.querySelector('[data-v=buscar]').click();buscar()">ver</span>` : '';
+    rows+=`<tr><td>${r.produto}</td><td>${r.ncmAtual||'—'}</td><td><b>${r.ncm}</b>${sugLink}</td>
+      <td>${badge(v.t,v.bg,v.fg)}</td><td>${r.status}</td><td>${r.ipi}</td><td>${r.pisAliq}</td><td>${r.ibs}</td></tr>`;
+  });
+  const head=`<tr><th>Produto</th><th>NCM cadastrado</th><th>NCM correto</th><th>Veredito</th><th>Detalhe</th><th>IPI</th><th>PIS/COFINS</th><th>IBS/CBS</th></tr>`;
+  $('#confRes').innerHTML=`<table><thead>${head}</thead><tbody>${rows}</tbody></table>`;
+  // resumo
+  const tot=_loteDados.length;
+  const ok=_loteDados.filter(r=>_vereditoConf(r).k==='ok').length;
+  const div=_loteDados.filter(r=>_vereditoConf(r).k==='div').length;
+  const rev=_loteDados.filter(r=>['rev','sem'].includes(_vereditoConf(r).k)).length;
+  $('#confResumo').style.display='block';
+  $('#confResumo').innerHTML=`<div class="card" style="padding:12px 16px;font-size:13px;display:flex;gap:18px;flex-wrap:wrap">
+    <span><b>${tot}</b> conferidos</span>
+    <span style="color:#1a7d3c"><b>${ok}</b> conferem</span>
+    <span style="color:#b00020"><b>${div}</b> divergentes</span>
+    <span style="color:#b06a00"><b>${rev}</b> a revisar</span></div>`;
+  document.getElementById('confExport').style.display=_loteDados.length?'flex':'none';
 }
 
 /* ---------- Refino por IA (proxy Edge Function claude-proxy) ---------- */
@@ -981,7 +1073,7 @@ async function refinarLoteIA(){
     _iaProcFim();
     if(btn){ btn.disabled=false; btn.style.opacity=''; btn.style.cursor=''; btn.textContent=txtOrig||'Refinar com IA'; }
   }
-  renderLote();
+  _renderLoteAtual();
   toast(`IA concluída: ${ok}/${alvo.length} refinados`);
 }
 
