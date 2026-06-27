@@ -183,7 +183,7 @@
     <input id="lkSenha" type="password" placeholder="senha" autocomplete="current-password">
     <button class="btn" onclick="lockLogin()">Entrar</button>
     <div class="lk-msg" id="lkMsg"></div>
-    <div style="font-size:10.5px;color:var(--text-3);margin-top:16px;letter-spacing:.3px">NCM Pro · build 2026-06-26e</div>
+    <div style="font-size:10.5px;color:var(--text-3);margin-top:16px;letter-spacing:.3px">NCM Pro · build 2026-06-26f</div>
   </div>
 </div>
 
@@ -1263,14 +1263,10 @@ async function redefinirSenhaUsuario(id,nome){
   const senha=prompt(`Nova senha para "${nome}" (mínimo 6 caracteres):`);
   if(senha===null)return;            // cancelou
   if(senha.length<6){toast('Senha mínima de 6 caracteres');return;}
-  const fn=(STORE.cfg.supaUrl||'').replace(/\/$/,'')+'/functions/v1/admin-users';
   toast('Redefinindo senha…');
   try{
-    const resp=await fetch(fn,{method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+(SESSAO&&SESSAO.access_token||''),'apikey':STORE.cfg.supaKey},
-      body:JSON.stringify({action:'set_password',user_id:id,password:senha})});
-    const data=await resp.json().catch(()=>({}));
-    if(!resp.ok||data.error){ toast('Erro: '+(data.error||('HTTP '+resp.status))); return; }
+    const {error}=await SUPA.rpc('ncm_admin_redefinir_senha',{p_uid:id,p_senha:senha});
+    if(error){ toast('Erro: '+error.message); return; }
     toast(`Senha redefinida para ${nome}. Avise a nova senha ao usuário.`);
   }catch(e){ toast('Erro: '+e.message); }
 }
