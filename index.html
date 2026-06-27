@@ -183,7 +183,7 @@
     <input id="lkSenha" type="password" placeholder="senha" autocomplete="current-password">
     <button class="btn" onclick="lockLogin()">Entrar</button>
     <div class="lk-msg" id="lkMsg"></div>
-    <div style="font-size:10.5px;color:var(--text-3);margin-top:16px;letter-spacing:.3px">NCM Pro · build 2026-06-26d</div>
+    <div style="font-size:10.5px;color:var(--text-3);margin-top:16px;letter-spacing:.3px">NCM Pro · build 2026-06-26e</div>
   </div>
 </div>
 
@@ -1232,6 +1232,7 @@ async function renderUsuarios(){
   document.getElementById('usrLista').innerHTML=`<table><thead><tr><th>Nome</th><th>E-mail</th><th>Papel</th><th>Status</th>${EH_ADMIN?'<th>Ações</th>':''}</tr></thead><tbody>${
     data.map(u=>{
       const acoes = EH_ADMIN && u.id!==meu ? `
+        <span class="sel" onclick="redefinirSenhaUsuario('${u.id}','${(u.nome||u.email||'').replace(/'/g,'')}')">redefinir senha</span> ·
         <span class="sel" onclick="mudarPapel('${u.id}','${u.papel==='admin'?'operador':'admin'}')">${u.papel==='admin'?'tornar operador':'tornar admin'}</span> ·
         <span class="sel" onclick="toggleAtivo('${u.id}',${u.ativo?'false':'true'})">${u.ativo?'inativar':'reativar'}</span> ·
         <span class="sel" style="color:#9b1c2e" onclick="excluirUsuario('${u.id}','${(u.nome||u.email||'').replace(/'/g,'')}')">excluir</span>` : (u.id===meu?'<span style="color:var(--text-3)">você</span>':'');
@@ -1256,6 +1257,22 @@ async function excluirUsuario(id,nome){
   const {error}=await SUPA.from('ncm_usuarios').delete().eq('id',id);
   if(error){ toast('Erro ao excluir: '+error.message); return; }
   toast('Usuário excluído'); renderUsuarios();
+}
+async function redefinirSenhaUsuario(id,nome){
+  if(!EH_ADMIN){toast('Apenas admin');return;}
+  const senha=prompt(`Nova senha para "${nome}" (mínimo 6 caracteres):`);
+  if(senha===null)return;            // cancelou
+  if(senha.length<6){toast('Senha mínima de 6 caracteres');return;}
+  const fn=(STORE.cfg.supaUrl||'').replace(/\/$/,'')+'/functions/v1/admin-users';
+  toast('Redefinindo senha…');
+  try{
+    const resp=await fetch(fn,{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+(SESSAO&&SESSAO.access_token||''),'apikey':STORE.cfg.supaKey},
+      body:JSON.stringify({action:'set_password',user_id:id,password:senha})});
+    const data=await resp.json().catch(()=>({}));
+    if(!resp.ok||data.error){ toast('Erro: '+(data.error||('HTTP '+resp.status))); return; }
+    toast(`Senha redefinida para ${nome}. Avise a nova senha ao usuário.`);
+  }catch(e){ toast('Erro: '+e.message); }
 }
 async function criarUsuario(){
   if(!_supaOnline()||!EH_ADMIN){toast('Apenas admin conectado');return;}
